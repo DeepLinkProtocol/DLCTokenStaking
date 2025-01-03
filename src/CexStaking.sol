@@ -44,8 +44,9 @@ contract CexStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Reent
         address staker;
         uint256 totalStakedAmount;
         uint256 stakeIndex;
-        StakeLockTimeType lockTimeType;
         uint256 initStakeAmount;
+        StakeLockTimeType lockTimeType;
+
     }
 
     mapping(address => mapping(StakeLockTimeType => AppendStakeInfo[])) appendStakeInfos;
@@ -57,8 +58,8 @@ contract CexStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Reent
 
     TopStaker[] public top10Stakers;
 
-    uint256 public day90TotalStakeAmount;
-    uint256 public day180TotalStakeAmount;
+//    uint256 public day90TotalStakeAmount;
+//    uint256 public day180TotalStakeAmount;
 
     struct top10StakerInfo {
         address staker;
@@ -68,7 +69,7 @@ contract CexStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Reent
     }
 
     modifier canStake(StakeLockTimeType stakeLockTimeType, uint256 stakeAmount) {
-        require(stakeAmount > 0, "Stake amount should be greater than 0");
+        require(stakeAmount >= minStakeAmountLimit, "Stake amount should be greater than min stake amount limit(10000)");
         require(leftAmountCanStake(stakeLockTimeType) >= stakeAmount, "Not enough left amount to stake");
         _;
     }
@@ -79,18 +80,19 @@ contract CexStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Reent
     }
 
     function initialize(address _initialOwner, address _rewardToken) public initializer {
+        require(_rewardToken != address(0), "Reward token address should not be zero");
         __ReentrancyGuard_init();
         __Ownable_init(_initialOwner);
         __UUPSUpgradeable_init();
         rewardToken = IERC20(_rewardToken);
-        minStakeAmountLimit = 1000 * 1e18;
+        minStakeAmountLimit = 10_000 * 1e18;
         top10Stakers = new TopStaker[](10);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     function getTotalStakeAmount() external view returns (uint256) {
-        return day90TotalStakeAmount + day180TotalStakeAmount;
+        return currentDays90totalStakedAmount + currentDays180totalStakedAmount;
     }
 
     function leftAmountCanStake(StakeLockTimeType stakeLockTimeType) public view returns (uint256) {
@@ -249,6 +251,7 @@ contract CexStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Reent
 
         if (stakeLockTimeType == StakeLockTimeType.days90) {
             currentDays90totalStakedAmount = currentDays90totalStakedAmount + stakeAmount;
+
         } else if (stakeLockTimeType == StakeLockTimeType.days180) {
             currentDays180totalStakedAmount = currentDays180totalStakedAmount + stakeAmount;
         }
@@ -292,7 +295,12 @@ contract CexStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Reent
         return 0;
     }
 
+    function claimLeftRewardToken() external onlyOwner {
+        require(rewardToken.balanceOf(address(this)) > 0, "No reward token balance");
+        rewardToken.transfer(msg.sender, rewardToken.balanceOf(address(this)));
+    }
+
     function version() external pure returns (uint256) {
-        return 2;
+        return 0;
     }
 }

@@ -34,8 +34,8 @@ contract CexStakingTest is Test {
     address public staker9;
     address public staker10;
 
-    uint256 stakeAmount = 1000 * 1e18;
-    uint256 additionalStakeAmount = 500 * 1e18;
+    uint256 stakeAmount = 10000 * 1e18;
+    uint256 additionalStakeAmount = 50000 * 1e18;
 
     function setUp() public {
         owner = address(this);
@@ -141,22 +141,22 @@ contract CexStakingTest is Test {
 
     function testUpdateTop10_StakerInserted() public {
         vm.startPrank(staker1);
-        rewardToken.approve(address(cexStaking), 1000 * 1e18);
-        cexStaking.stake(CexStaking.StakeLockTimeType.days90, 1000 * 1e18);
+        rewardToken.approve(address(cexStaking), 10000 * 1e18);
+        cexStaking.stake(CexStaking.StakeLockTimeType.days90, 10000 * 1e18);
         vm.stopPrank();
 
         (address stakerAddr, uint256 stakerAmount,,,) = cexStaking.top10Stakers(0);
         assertEq(stakerAddr, staker1, "Top 10 staker should be staker1");
-        assertEq(stakerAmount, 1000 * 1e18, "Staker1's stake amount should be 1000");
+        assertEq(stakerAmount, 10000 * 1e18, "Staker1's stake amount should be 1000");
 
         vm.startPrank(staker2);
-        rewardToken.approve(address(cexStaking), 2000 * 1e18);
-        cexStaking.stake(CexStaking.StakeLockTimeType.days90, 2000 * 1e18);
+        rewardToken.approve(address(cexStaking), 20000 * 1e18);
+        cexStaking.stake(CexStaking.StakeLockTimeType.days90, 20000 * 1e18);
         vm.stopPrank();
 
         (address stakerAddr1, uint256 stakerAmount1,,,) = cexStaking.top10Stakers(0);
         assertEq(stakerAddr1, staker2, "Top 10 staker should be staker2");
-        assertEq(stakerAmount1, 2000 * 1e18, "Staker2's stake amount should be 2000");
+        assertEq(stakerAmount1, 20000 * 1e18, "Staker2's stake amount should be 2000");
 
         (address stakerAddr2,,,,) = cexStaking.top10Stakers(1);
         assertEq(stakerAddr2, staker1, "Top 10 staker should be staker1 at position 1");
@@ -164,18 +164,18 @@ contract CexStakingTest is Test {
 
     function testUpdateTop10_ReplaceOldStaker() public {
         vm.startPrank(staker1);
-        rewardToken.approve(address(cexStaking), 1000 * 1e18);
-        cexStaking.stake(CexStaking.StakeLockTimeType.days90, 1000 * 1e18);
+        rewardToken.approve(address(cexStaking), 10000 * 1e18);
+        cexStaking.stake(CexStaking.StakeLockTimeType.days90, 10000 * 1e18);
         vm.stopPrank();
 
         vm.startPrank(staker2);
-        rewardToken.approve(address(cexStaking), 2000 * 1e18);
-        cexStaking.stake(CexStaking.StakeLockTimeType.days90, 2000 * 1e18);
+        rewardToken.approve(address(cexStaking), 20000 * 1e18);
+        cexStaking.stake(CexStaking.StakeLockTimeType.days90, 20000 * 1e18);
         vm.stopPrank();
 
         vm.startPrank(staker3);
-        rewardToken.approve(address(cexStaking), 5000 * 1e18);
-        cexStaking.stake(CexStaking.StakeLockTimeType.days90, 5000 * 1e18);
+        rewardToken.approve(address(cexStaking), 50000 * 1e18);
+        cexStaking.stake(CexStaking.StakeLockTimeType.days90, 50000 * 1e18);
         vm.stopPrank();
 
         (address stakerAddr,,,,) = cexStaking.top10Stakers(0);
@@ -191,7 +191,7 @@ contract CexStakingTest is Test {
     function testTop10ArrayIsFull() public {
         for (uint256 i = 1; i <= 10; i++) {
             address staker = address(uint160(i));
-            uint256 stakeAmount_ = i * 1000 * 1e18;
+            uint256 stakeAmount_ = i * 10000 * 1e18;
             rewardToken.mint(staker, 1000000 * 1e18);
             vm.startPrank(staker);
             rewardToken.approve(address(cexStaking), stakeAmount_);
@@ -202,7 +202,7 @@ contract CexStakingTest is Test {
         for (uint256 i = 0; i < 10; i++) {
             (address stakerAddr1, uint256 totalStakedAmount,,,) = cexStaking.top10Stakers(i);
             assertEq(stakerAddr1, address(uint160(10 - i)), "Top staker should match expected address");
-            assertEq(totalStakedAmount, (10 - i) * 1000 * 1e18, "Top staker amount should match expected amount");
+            assertEq(totalStakedAmount, (10 - i) * 10000 * 1e18, "Top staker amount should match expected amount");
         }
     }
 
@@ -241,7 +241,7 @@ contract CexStakingTest is Test {
         vm.stopPrank();
         CexStaking.top10StakerInfo[] memory topStakers = cexStaking.getTopStakeHolders();
 
-        assertEq(topStakers[0].staker, staker1, "staker1 should be the top staker.");
-        assertEq(topStakers[1].staker, staker2, "staker2 should be the second staker.");
+        assertEq(topStakers[0].staker, staker2, "staker2 should be the top staker.");
+        assertEq(topStakers[1].staker, staker1, "staker1 should be the second staker.");
     }
 }

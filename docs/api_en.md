@@ -13,8 +13,8 @@ To be updated after deployment.
 ## Data Structures
 ### StakeLockTimeType (Enum)
 Represents the supported lock-up period types:
-- `days90`: 90-day lock-up period.
-- `days180`: 180-day lock-up period.
+- `days90`: 90-day lock-up period the enum value is 0.
+- `days180`: 180-day lock-up period the enum value is 1.
 
 ---
 
@@ -33,7 +33,8 @@ None.
 ---
 
 ### 2. `stake(StakeLockTimeType lockTimeType, uint256 amount)`
-Allows users to stake tokens and select a lock-up period.
+Allows users to stake tokens and select a lock-up period. minimum stake amount required is 10000 token.
+
 
 #### Parameters
 - `lockTimeType`: Lock-up period type, either `StakeLockTimeType.days90` or `StakeLockTimeType.days180`.

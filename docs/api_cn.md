@@ -13,8 +13,8 @@ CexStaking 合约提供了代币质押和奖励管理功能，支持多种锁仓
 ## 数据结构
 ### StakeLockTimeType (枚举)
 表示支持的锁仓期类型：
-- `days90`: 90 天锁仓期。
-- `days180`: 180 天锁仓期。
+- `days90`: 90 天锁仓期 枚举值为0。 
+- `days180`: 180 天锁仓期 枚举值为1。
 
 ---
 
@@ -33,7 +33,7 @@ CexStaking 合约提供了代币质押和奖励管理功能，支持多种锁仓
 ---
 
 ### 2. `stake(StakeLockTimeType lockTimeType, uint256 amount)`
-用户质押代币并选择锁仓期。
+用户质押代币并选择锁仓期 最小的质押金额是10000个。
 
 #### 参数
 - `lockTimeType`：锁仓期类型，接受 `StakeLockTimeType.days90` 或 `StakeLockTimeType.days180`。
@@ -44,8 +44,8 @@ CexStaking 合约提供了代币质押和奖励管理功能，支持多种锁仓
 
 #### 示例
 ```solidity
-rewardToken.approve(address(cexStaking), 1_000_000 * 1e18);
-cexStaking.stake(StakeLockTimeType.days90, 1_000_000 * 1e18);
+    rewardToken.approve(address(cexStaking), 1_000_000 * 1e18);
+    cexStaking.stake(StakeLockTimeType.days90, 1_000_000 * 1e18);
 ```
 
 ---
