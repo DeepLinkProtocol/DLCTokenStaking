@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Script} from "forge-std/Script.sol";
-import {CexStaking} from "../src/CexStaking.sol";
+import {DLCStaking} from "../src/DLCStaking.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {Options} from "openzeppelin-foundry-upgrades/Options.sol";
 
@@ -37,7 +37,7 @@ contract Deploy is Script {
         console.log("rewardTokenContract Address:", rewardTokenContract);
 
         proxy = Upgrades.deployUUPSProxy(
-            "CexStaking.sol:CexStaking", abi.encodeCall(CexStaking.initialize, (msg.sender, rewardTokenContract))
+            "DLCStaking.sol:DLCStaking", abi.encodeCall(DLCStaking.initialize, (msg.sender, rewardTokenContract))
         );
         return (proxy, logic);
     }

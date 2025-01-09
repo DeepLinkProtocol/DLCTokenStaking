@@ -31,7 +31,7 @@ contract Upgrade is Script {
         //
         //                Upgrades.validateUpgrade("NFTStaking.sol:NFTStaking", opts);
 
-        Upgrades.upgradeProxy(transparentProxy, "CexStaking.sol:CexStaking", "");
+        Upgrades.upgradeProxy(transparentProxy, "DLCStaking.sol:DLCStaking", "");
 
         vm.stopBroadcast();
     }

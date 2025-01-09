@@ -1,7 +1,7 @@
-# CexStaking Contract API Documentation
+# DLCStaking Contract API Documentation
 
 ## Introduction
-The CexStaking contract provides token staking and reward management functionalities. It supports multiple lock-up periods, allowing users to stake tokens, earn rewards, and withdraw their stakes and rewards after the lock-up period ends.
+The DLCStaking contract provides token staking and reward management functionalities. It supports multiple lock-up periods, allowing users to stake tokens, earn rewards, and withdraw their stakes and rewards after the lock-up period ends.
 
 ---
 
@@ -45,8 +45,8 @@ None.
 
 #### Example
 ```solidity
-rewardToken.approve(address(cexStaking), 1_000_000 * 1e18);
-cexStaking.stake(StakeLockTimeType.days90, 1_000_000 * 1e18);
+rewardToken.approve(address(DLCStaking), 1_000_000 * 1e18);
+DLCStaking.stake(StakeLockTimeType.days90, 1_000_000 * 1e18);
 ```
 
 ---
@@ -63,7 +63,7 @@ Retrieves the current claimable reward for a specific stake.
 
 #### Example
 ```solidity
-uint256 rewardAmount = cexStaking.getRewardAmount(user1, 1);
+uint256 rewardAmount = DLCStaking.getRewardAmount(user1, 1);
 ```
 
 ---
@@ -79,7 +79,7 @@ None.
 
 #### Example
 ```solidity
-cexStaking.claim(1);
+DLCStaking.claim(1);
 ```
 
 ---
@@ -95,8 +95,78 @@ None.
 
 #### Example
 ```solidity
-cexStaking.exitStake(1);
+DLCStaking.exitStake(1);
 ```
+
+
+### 6. `canExitStake(uint256 stakeIndex) returns (bool)`
+If can exit stake.
+
+#### Parameters
+- `stakeIndex`：stake index.
+
+#### Returns
+- `bool`:If true, can exit stake; else can not exit stake.
+
+#### Example
+```solidity
+bool canExit = DLCStaking.canExitStake(1);
+```
+
+
+### 7. `getTopStakeHolders(StakeLockTimeType lockTimeType,uint256 pageNumber, uint256 pageSize) → (top100StakerInfo[] memory，uint256)`
+Get the information of the top 100 stake holders ranked by the number of staking
+
+#### Parameters
+- `lockTimeType`：lock-up period enum type (0:90 days, 1:180 days).
+- `pageNumber`：Page number (starting from 1).
+- `pageSize`：QuantityPerPage.
+
+#### Returns
+- `top100StakerInfo[]`: Information on the top 100 stakers ranked by pledge quantity.
+- `uint256 staker`: The total number of people ranked by pledge quantity.
+ ```
+  struct top100StakerInfo {
+       address staker;   // staker address
+       uint256 totalStakedAmount; // staked amount
+       uint256 rewardAmount; // reward amount 
+       uint256 startAtTimestamp; // stake start timestamp
+  }
+  
+  ```
+#### Example
+```solidity
+(top100StakerInfo[] memory topStakers，uint256 total) = DLCStaking.getTopStakeHolders(0,1,20);
+```
+
+### 8. `function getMyStakingInfo(address holder, uint256 pageNumber, uint256 pageSize)returns (stakeInfoForShowing[] memory infos, uint256 total)`
+Get the staker's staking information list.
+
+#### Parameters
+- `holder`: stakeholder address.
+- `pageNumber`：Page number (starting from 1).
+- `pageSize`：QuantityPerPage
+
+
+#### Returns
+- `stakeInfoForShowing[] infos`: list of staking information of the stake holder
+- `uint256 total`: The total number of pledge information of the stake holder.
+
+
+#### Example
+```solidity
+(stakeInfoForShowing[] memory infos, uint256 total) = DLCStaking.getMyStakingInfo(0x01,1,20);
+```
+ ```
+   struct stakeInfoForShowing {
+        uint256 stakeIndex; // stake index
+        uint256 stakedAmount; // staked amount
+        uint256 totalRewardAmount; // total reward amount
+        uint256 dailyRewardAmount; // daily reward amount
+        uint256 claimedRewardAmount; // claimed reward amount
+    }
+
+  ```
 
 ---
 

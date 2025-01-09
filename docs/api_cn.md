@@ -1,7 +1,7 @@
-# CexStaking 合约接口文档
+# DLCStaking 合约接口文档
 
 ## 简介
-CexStaking 合约提供了代币质押和奖励管理功能，支持多种锁仓期，用户可以通过质押获取奖励，并在锁仓期结束后提取质押和奖励。
+DLCStaking 合约提供了代币质押和奖励管理功能，支持多种锁仓期，用户可以通过质押获取奖励，并在锁仓期结束后提取质押和奖励。
 
 ---
 
@@ -44,8 +44,8 @@ CexStaking 合约提供了代币质押和奖励管理功能，支持多种锁仓
 
 #### 示例
 ```solidity
-    rewardToken.approve(address(cexStaking), 1_000_000 * 1e18);
-    cexStaking.stake(StakeLockTimeType.days90, 1_000_000 * 1e18);
+    rewardToken.approve(address(DLCStaking), 1_000_000 * 1e18);
+    DLCStaking.stake(StakeLockTimeType.days90, 1_000_000 * 1e18);
 ```
 
 ---
@@ -62,7 +62,7 @@ CexStaking 合约提供了代币质押和奖励管理功能，支持多种锁仓
 
 #### 示例
 ```solidity
-uint256 rewardAmount = cexStaking.getRewardAmount(user1, 1);
+uint256 rewardAmount = DLCStaking.getRewardAmount(user1, 1);
 ```
 
 ---
@@ -78,7 +78,7 @@ uint256 rewardAmount = cexStaking.getRewardAmount(user1, 1);
 
 #### 示例
 ```solidity
-cexStaking.claim(1);
+DLCStaking.claim(1);
 ```
 
 ---
@@ -94,8 +94,77 @@ cexStaking.claim(1);
 
 #### 示例
 ```solidity
-cexStaking.exitStake(1);
+DLCStaking.exitStake(1);
 ```
+
+### 6. `canExitStake(uint256 stakeIndex) returns (bool)`
+获取是否可以退出质押。
+
+#### 参数
+- `stakeIndex`：质押索引。
+
+#### 返回值
+- `bool`:是否可以退出质押的布尔值。
+
+#### 示例
+```solidity
+bool canExit = DLCStaking.canExitStake(1);
+```
+
+
+### 7. `getTopStakeHolders(StakeLockTimeType lockTimeType,uint256 pageNumber, uint256 pageSize) → (top100StakerInfo[] memory，uint256)`
+获取按质押数量排行的前 100 位质押者信息。
+
+#### 参数
+- `lockTimeType`：锁仓期类型枚举 (0:90 days, 1:180 days)。
+- `pageNumber`：页码(从1开始)。
+- `pageSize`：每页数量。
+
+#### 返回值
+- `top100StakerInfo[]`: 按质押数量排行的前 100 位质押者信息。
+- `uint256 staker`: 质押数量排行的总人数。
+ ```
+  struct top100StakerInfo {
+       address staker;   // staker address
+       uint256 totalStakedAmount; // staked amount
+       uint256 rewardAmount; // reward amount 
+       uint256 startAtTimestamp; // stake start timestamp
+  }
+  
+  ```
+#### Example
+```solidity
+(top100StakerInfo[] memory topStakers，uint256 total) = DLCStaking.getTopStakeHolders(0,1,20);
+```
+
+### 8. `function getMyStakingInfo(address holder, uint256 pageNumber, uint256 pageSize)returns (stakeInfoForShowing[] memory infos, uint256 total)`
+获取质押者质押信息列表。
+
+#### 参数
+- `holder`: 质押者地址。
+- `pageNumber`：页码(从1开始)。
+- `pageSize`：每页数量。
+
+
+#### 返回值
+- `stakeInfoForShowing[] infos`: 质押者的质押信息列表。
+- `uint256 total`: 质押者的质押信息总数。
+
+
+#### 示例
+```solidity
+(stakeInfoForShowing[] memory infos, uint256 total) = DLCStaking.getMyStakingInfo(0x01,1,20);
+```
+ ```
+   struct stakeInfoForShowing {
+        uint256 stakeIndex; // stake index
+        uint256 stakedAmount; // staked amount
+        uint256 totalRewardAmount; // total reward amount
+        uint256 dailyRewardAmount; // daily reward amount
+        uint256 claimedRewardAmount; // claimed reward amount
+    }
+
+  ```
 
 ---
 
@@ -161,21 +230,4 @@ cexStaking.exitStake(1);
 
 #### 返回值
 - `totalAmount`：180 天锁仓期的总质押量。
-
----
-
-### 4. `getTopStakeHolders() → (top10StakerInfo[] memory)`
-获取按质押数量排行的前 10 位质押者信息。
-
-#### 返回值
-- `top10StakerInfo[]`: 按质押数量排行的前 10 位质押者信息。
- ```
-  struct top10StakerInfo {
-       address staker;   // staker address
-       uint256 totalStakedAmount; // staked amount
-       StakeLockTimeType lockTimeType; // lock-up period enum type (0:90 days, 1:180 days)
-       uint256 rewardAmount; // reward amount 
-  }
-  
-  ```
 ---
