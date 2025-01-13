@@ -53,8 +53,7 @@ contract DLCStakingTest is Test {
             abi.encodeWithSelector(DlcStaking.initialize.selector, owner, address(rewardToken))
         );
         DlcStaking = DLCStaking(address(proxy));
-        (, uint256 size) = DlcStaking.getTopStakeHolders(DLCStaking.StakeLockTimeType.days90,1, 20);
-        console.log("cexStaking.top10Stakers().length : ", size); // 0
+
         rewardToken.mint(address(DlcStaking), 4_000_000_000 * 1e18);
         rewardToken.mint(user1, 10_000_000 * 1e18);
         rewardToken.mint(user2, 10_000_000 * 1e18);
@@ -76,7 +75,7 @@ contract DLCStakingTest is Test {
         rewardToken.approve(address(DlcStaking), 1_000_000 * 1e18);
         DlcStaking.stake(DLCStaking.StakeLockTimeType.days90, 1_000_000 * 1e18);
 
-        (uint256 stakeIndex,, uint256 amount,,, uint256 totalRewardAmount,, uint256 rewardPerSeconds,) =
+        (uint256 stakeIndex,, uint256 amount,,, uint256 totalRewardAmount,, uint256 rewardPerSeconds,,) =
             DlcStaking.addressToStakeInfos(user1, 1);
 
         assertEq(stakeIndex, 1);
@@ -94,7 +93,7 @@ contract DLCStakingTest is Test {
         rewardToken.approve(address(DlcStaking), 2_000_000 * 1e18);
         DlcStaking.stake(DLCStaking.StakeLockTimeType.days180, 2_000_000 * 1e18);
 
-        (uint256 stakeIndex,, uint256 amount,,, uint256 totalRewardAmount,, uint256 rewardPerSeconds,) =
+        (uint256 stakeIndex,, uint256 amount,,, uint256 totalRewardAmount,, uint256 rewardPerSeconds,,) =
             DlcStaking.addressToStakeInfos(user2, 1);
         assertEq(stakeIndex, 1);
         assertEq(amount, 2_000_000 * 1e18);
@@ -207,7 +206,6 @@ contract DLCStakingTest is Test {
         }
     }
 
-
     function testUpdateTop100StakersOnNewStake() public {
         vm.startPrank(staker1);
         rewardToken.approve(address(DlcStaking), stakeAmount);
@@ -218,8 +216,9 @@ contract DLCStakingTest is Test {
         rewardToken.approve(address(DlcStaking), additionalStakeAmount);
         DlcStaking.stake(DLCStaking.StakeLockTimeType.days90, additionalStakeAmount); // staker2
         vm.stopPrank();
-        (DLCStaking.top100StakerInfo[] memory topStakers,) = DlcStaking.getTopStakeHolders(DLCStaking.StakeLockTimeType.days90,1, 20);
-
+        DLCStaking.TopStakerResponse memory r =
+            DlcStaking.getTopStakeHolders(DLCStaking.StakeLockTimeType.days90, 1, 20);
+        DLCStaking.top100StakerInfo[] memory topStakers = r.topStakers;
         assertEq(topStakers[0].staker, staker2, "staker2 should be the top staker.");
         assertEq(topStakers[1].staker, staker1, "staker1 should be the second staker.");
     }

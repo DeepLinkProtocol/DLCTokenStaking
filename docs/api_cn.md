@@ -112,7 +112,7 @@ bool canExit = DLCStaking.canExitStake(1);
 ```
 
 
-### 7. `getTopStakeHolders(StakeLockTimeType lockTimeType,uint256 pageNumber, uint256 pageSize) → (top100StakerInfo[] memory，uint256)`
+### 7. `getTopStakeHolders(StakeLockTimeType lockTimeType,uint256 pageNumber, uint256 pageSize) → (TopStakerResponse memory)`
 获取按质押数量排行的前 100 位质押者信息。
 
 #### 参数
@@ -121,20 +121,24 @@ bool canExit = DLCStaking.canExitStake(1);
 - `pageSize`：每页数量。
 
 #### 返回值
-- `top100StakerInfo[]`: 按质押数量排行的前 100 位质押者信息。
-- `uint256 staker`: 质押数量排行的总人数。
+- `TopStakerResponse`: 按质押数量排行的前 100 位质押者信息与数量。
  ```
-  struct top100StakerInfo {
+    struct TopStakerResponse {
+        top100StakerInfo[] topStakers;
+        uint256 totalStakers;
+    }
+
+    struct top100StakerInfo {
        address staker;   // staker address
        uint256 totalStakedAmount; // staked amount
        uint256 rewardAmount; // reward amount 
        uint256 startAtTimestamp; // stake start timestamp
-  }
+    }
   
   ```
 #### Example
 ```solidity
-(top100StakerInfo[] memory topStakers，uint256 total) = DLCStaking.getTopStakeHolders(0,1,20);
+TopStakerResponse memory response = DLCStaking.getTopStakeHolders(0,1,20);
 ```
 
 ### 8. `function getMyStakingInfo(address holder, uint256 pageNumber, uint256 pageSize)returns (stakeInfoForShowing[] memory infos, uint256 total)`
@@ -162,10 +166,31 @@ bool canExit = DLCStaking.canExitStake(1);
         uint256 totalRewardAmount; // total reward amount
         uint256 dailyRewardAmount; // daily reward amount
         uint256 claimedRewardAmount; // claimed reward amount
+        bool inStaking; // in staking or not
+        uint256 startAtTimestamp; // start at timestamp
+        StakeLockTimeType lockTimeType; // lock time type
+        bool canExitStaking; // can exit staking or not
     }
 
   ```
+### 9. `function getMyStakingInfoSummary(address holder) external view returns (uint256 days90StakedAmount, uint256 days90RewardAmount, uint256 days180StakedAmount, uint256 days180RewardAmount)`
+获取质押者质押摘要信息。
 
+#### 参数
+- `holder`: 质押者地址。
+
+
+#### 返回值
+- `days90StakedAmount`:  90 天锁仓期质押的总质押量。
+- `days90RewardAmount`: 90 天锁仓期质押的总奖励数量。
+- `days180StakedAmount`: 180 天锁仓期质押的总质押量。
+- `days180RewardAmount`: 180 天锁仓期质押的总奖励数量。
+
+
+#### 示例
+```solidity
+ (uint256 days90StakedAmount, uint256 days90RewardAmount, uint256 days180StakedAmount, uint256 days180RewardAmount) = DLCStaking.getMyStakingInfoSummary(0x01,1,20);
+```
 ---
 
 ## 事件

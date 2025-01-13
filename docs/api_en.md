@@ -123,9 +123,14 @@ Get the information of the top 100 stake holders ranked by the number of staking
 - `pageSize`：QuantityPerPage.
 
 #### Returns
-- `top100StakerInfo[]`: Information on the top 100 stakers ranked by pledge quantity.
-- `uint256 staker`: The total number of people ranked by pledge quantity.
+- `TopStakerResponse`: Information and quantity of the top 100 staker ranked by stake quantity.
  ```
+
+  struct TopStakerResponse {
+      top100StakerInfo[] topStakers;
+      uint256 totalStakers;
+  }
+    
   struct top100StakerInfo {
        address staker;   // staker address
        uint256 totalStakedAmount; // staked amount
@@ -136,7 +141,7 @@ Get the information of the top 100 stake holders ranked by the number of staking
   ```
 #### Example
 ```solidity
-(top100StakerInfo[] memory topStakers，uint256 total) = DLCStaking.getTopStakeHolders(0,1,20);
+TopStakerResponse memory response = DLCStaking.getTopStakeHolders(0,1,20);
 ```
 
 ### 8. `function getMyStakingInfo(address holder, uint256 pageNumber, uint256 pageSize)returns (stakeInfoForShowing[] memory infos, uint256 total)`
@@ -164,9 +169,32 @@ Get the staker's staking information list.
         uint256 totalRewardAmount; // total reward amount
         uint256 dailyRewardAmount; // daily reward amount
         uint256 claimedRewardAmount; // claimed reward amount
+        bool inStaking; // stake is in staking or not
+        uint256 startAtTimestamp; // start at timestamp
+        StakeLockTimeType lockTimeType; // lock time type
+        bool canExitStaking; // can exit staking or not
     }
 
   ```
+
+### 9. `function getMyStakingInfoSummary(address holder) external view returns (uint256 days90StakedAmount, uint256 days90RewardAmount, uint256 days180StakedAmount, uint256 days180RewardAmount)`
+Get the staker s staking summary information
+
+#### 参数
+- `holder`: Address of the stakeholder.
+
+
+#### 返回值
+- `days90StakedAmount`:  The total staking amount during the 90-day lock-up period.
+- `days90RewardAmount`: The total amount of rewards staking during the 90-day lock-up period.
+- `days180StakedAmount`: The total staking amount during the 180-day lock-up period.
+- `days180RewardAmount`: The total amount of rewards staking during the 180-day lock-up period.
+
+
+#### 示例
+```solidity
+ (uint256 days90StakedAmount, uint256 days90RewardAmount, uint256 days180StakedAmount, uint256 days180RewardAmount) = DLCStaking.getMyStakingInfoSummary(0x01,1,20);
+```
 
 ---
 
