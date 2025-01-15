@@ -8,6 +8,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
+/// @custom:oz-upgrades-from OldDLCStaking
 contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     IERC20 public rewardToken;
 
@@ -16,10 +17,10 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
         days180
     }
 
-    uint256 constant DAYS_90_TOTAL_REWARD_AMOUNT = 2_000_000_000 * 1e18;
-    uint256 constant DAYS_180_TOTAL_REWARD_AMOUNT = 2_000_000_000 * 1e18;
-    uint256 constant DAYS_90_STAKE_MAX_AMOUNT = 6_666_666_666 * 1e18;
-    uint256 constant DAYS_180_STAKE_MAX_AMOUNT = 2_500_000_000 * 1e18;
+    uint256 days90TotalRewardAmount;
+    uint256 days180TotalRewardAmount;
+    uint256 constant DAYS_90_STAKE_MAX_AMOUNT = 3_333_333_333 * 1e18;
+    uint256 constant DAYS_180_STAKE_MAX_AMOUNT = 1_250_000_000 * 1e18;
 
     uint256 public currentDays90totalStakedAmount;
     uint256 public currentDays180totalStakedAmount;
@@ -30,7 +31,7 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
     mapping(address => uint256) public addressToLastStakeIndex;
     mapping(address => mapping(uint256 => StakeInfo)) public addressToStakeInfos;
     uint256 public minStakeAmountLimit;
-    mapping(address => uint256[]) address2StakeIndexList;
+    mapping(address => uint256[]) public address2StakeIndexList;
 
     struct StakeInfo {
         uint256 stakeIndex;
@@ -42,6 +43,7 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
         uint256 lastClaimedTimestamp;
         uint256 rewardAmountPerSeconds;
         uint256 claimedRewardAmount;
+        uint256 endTimestamp;
     }
 
     struct TopStaker {
@@ -54,11 +56,23 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
     TopStaker[] public days90Top100Stakers;
     TopStaker[] public days180Top100Stakers;
 
+    uint256 public currentDays90totalExitedStakingAmount;
+    uint256 public currentDays180totalExitedStakingAmount;
+
+    uint256 public currentDays90totalRewardAmount;
+    uint256 public currentDays180totalRewardAmount;
+
     struct top100StakerInfo {
         address staker;
         uint256 totalStakedAmount;
         uint256 rewardAmount;
         uint256 startAtTimestamp;
+        uint256 stakeIndex;
+    }
+
+    struct TopStakerResponse {
+        top100StakerInfo[] topStakers;
+        uint256 totalStakers;
     }
 
     struct stakeInfoForShowing {
@@ -67,7 +81,26 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
         uint256 totalRewardAmount;
         uint256 dailyRewardAmount;
         uint256 claimedRewardAmount;
+        bool inStaking;
+        uint256 startAtTimestamp;
+        StakeLockTimeType lockTimeType;
+        bool canExitStaking;
     }
+
+    uint256 stakingCount;
+
+    event Stake(
+        address indexed staker, uint256 stakeIndex, uint256 amount, StakeLockTimeType lockTimeType, uint256 _now
+    );
+    event Claim(
+        address indexed staker, uint256 stakeIndex, uint256 rewardAmount, StakeLockTimeType lockTimeType, uint256 _now
+    );
+
+    event StakeExited(
+        address indexed staker, uint256 stakeIndex, uint256 amount, StakeLockTimeType lockTimeType, uint256 _now
+    );
+
+    event ClaimLeftRewardToken(address indexed caller, uint256 balance);
 
     modifier canStake(StakeLockTimeType stakeLockTimeType, uint256 stakeAmount) {
         require(stakeAmount >= minStakeAmountLimit, "Stake amount should be greater than min stake amount limit(10000)");
@@ -87,7 +120,10 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
         __UUPSUpgradeable_init();
         rewardToken = IERC20(_rewardToken);
         minStakeAmountLimit = 10_000 * 1e18;
-        days90Top100Stakers = new TopStaker[](100);
+        days90TotalRewardAmount = 1_000_000_000 * 1e18;
+        days180TotalRewardAmount = 1_000_000_000 * 1e18;
+        days90Top100Stakers = new TopStaker[](0);
+        days180Top100Stakers = new TopStaker[](0);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -106,21 +142,54 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
         return 0;
     }
 
-    function getUnclaimedStakedDays(StakeInfo memory stakeInfo) internal view returns (uint256) {
-        return (block.timestamp - stakeInfo.lastClaimedTimestamp) / 1 days;
-    }
-
     function getRewardAmount(address account, uint256 stakeIndex) public view returns (uint256) {
         StakeInfo memory stakeInfo = addressToStakeInfos[account][stakeIndex];
+        if (!stakeInfo.inStaking && stakeInfo.endTimestamp > 0) {
+            return 0;
+        }
         uint256 rewardAmount = stakeInfo.rewardAmountPerSeconds * (block.timestamp - stakeInfo.lastClaimedTimestamp);
         rewardAmount = rewardAmount > stakeInfo.totalRewardAmount ? stakeInfo.totalRewardAmount : rewardAmount;
         return rewardAmount;
     }
 
+    function getTotalRewardAmount(address account, uint256 stakeIndex) public view returns (uint256) {
+        StakeInfo memory stakeInfo = addressToStakeInfos[account][stakeIndex];
+        uint256 endAt = stakeInfo.endTimestamp > 0 ? stakeInfo.endTimestamp : block.timestamp;
+        uint256 rewardAmount = stakeInfo.rewardAmountPerSeconds * (endAt - stakeInfo.startTimestamp);
+        return rewardAmount;
+    }
+
+    function getMyStakingInfoSummary(address holder)
+    external
+    view
+    returns (
+        uint256 days90StakedAmount,
+        uint256 days90RewardAmount,
+        uint256 days180StakedAmount,
+        uint256 days180RewardAmount
+    )
+    {
+        uint256[] memory ids = address2StakeIndexList[holder];
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            StakeInfo memory stakeInfo = addressToStakeInfos[holder][id];
+
+            if (stakeInfo.lockTimeType == StakeLockTimeType.days90) {
+                days90StakedAmount += stakeInfo.amount;
+                days90RewardAmount += getRewardAmount(holder, id);
+            } else if (stakeInfo.lockTimeType == StakeLockTimeType.days180) {
+                days180StakedAmount += stakeInfo.amount;
+                days180RewardAmount += getRewardAmount(holder, id);
+            }
+        }
+
+        return (days90StakedAmount, days90RewardAmount, days180StakedAmount, days180RewardAmount);
+    }
+
     function getMyStakingInfo(address holder, uint256 pageNumber, uint256 pageSize)
-        external
-        view
-        returns (stakeInfoForShowing[] memory infos, uint256 total)
+    external
+    view
+    returns (stakeInfoForShowing[] memory infos, uint256 total)
     {
         require(pageSize > 0, "Page size must be greater than zero");
         require(pageNumber > 0, "Page number must be greater than zero");
@@ -137,7 +206,9 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
         }
 
         // Ensure the startIndex is within range
-        require(startIndex < totalStakings, "Page number exceeds total pages");
+        if (startIndex >= totalStakings) {
+            return (new stakeInfoForShowing[](0), totalStakings);
+        }
 
         uint256 resultLength = endIndex - startIndex;
         infos = new stakeInfoForShowing[](resultLength);
@@ -147,25 +218,29 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
             uint256 id = ids[i];
             StakeInfo memory stakeInfo = addressToStakeInfos[holder][id];
 
-            if (stakeInfo.inStaking) {
-                infos[index] = stakeInfoForShowing(
-                    stakeInfo.stakeIndex,
-                    stakeInfo.amount,
-                    getRewardAmount(holder, id),
-                    stakeInfo.rewardAmountPerSeconds * 1 days,
-                    stakeInfo.claimedRewardAmount
-                );
-                index++;
-            }
+            //            if (stakeInfo.inStaking) {
+            infos[index] = stakeInfoForShowing(
+                stakeInfo.stakeIndex,
+                stakeInfo.amount,
+                getRewardAmount(holder, id),
+                stakeInfo.rewardAmountPerSeconds * 1 days,
+                stakeInfo.claimedRewardAmount,
+                stakeInfo.inStaking,
+                stakeInfo.startTimestamp,
+                stakeInfo.lockTimeType,
+                canExitStake(holder, id)
+            );
+            index++;
+            //            }
         }
 
         return (infos, totalStakings);
     }
 
     function getTotalRewardAmount(StakeLockTimeType stakeLockTimeType, uint256 stakeAmount)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         if (stakeLockTimeType == StakeLockTimeType.days90) {
             return stakeAmount * 3 / 10;
@@ -177,9 +252,9 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
     }
 
     function getRewardPerSeconds(StakeLockTimeType stakeLockTimeType, uint256 totalRewardAmount)
-        internal
-        pure
-        returns (uint256)
+    internal
+    pure
+    returns (uint256)
     {
         if (stakeLockTimeType == StakeLockTimeType.days90) {
             return totalRewardAmount / 90 days;
@@ -197,35 +272,33 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
         uint256 startAtTimestamp,
         TopStaker[] storage targetTopStakers
     ) internal {
+        TopStaker memory newEntry = TopStaker({
+            staker: staker,
+            stakeIndex: stakeIndex,
+            totalStakedAmount: amount,
+            startAtTimestamp: startAtTimestamp
+        });
+
         bool inserted = false;
+
         for (uint256 i = 0; i < targetTopStakers.length; i++) {
-            if (targetTopStakers[i].staker == address(0) || amount > targetTopStakers[i].totalStakedAmount) {
-                for (uint256 j = targetTopStakers.length - 1; j > i; j--) {
+            if (amount > targetTopStakers[i].totalStakedAmount) {
+                targetTopStakers.push(targetTopStakers[targetTopStakers.length - 1]);
+                for (uint256 j = targetTopStakers.length - 2; j > i; j--) {
                     targetTopStakers[j] = targetTopStakers[j - 1];
                 }
-                targetTopStakers[i] = TopStaker({
-                    staker: staker,
-                    stakeIndex: stakeIndex,
-                    totalStakedAmount: amount,
-                    startAtTimestamp: startAtTimestamp
-                });
+                targetTopStakers[i] = newEntry;
                 inserted = true;
                 break;
             }
         }
 
-        if (!inserted) {
-            for (uint256 i = 0; i < targetTopStakers.length; i++) {
-                if (targetTopStakers[i].staker == address(0)) {
-                    targetTopStakers[i] = TopStaker({
-                        staker: staker,
-                        stakeIndex: stakeIndex,
-                        totalStakedAmount: amount,
-                        startAtTimestamp: startAtTimestamp
-                    });
-                    break;
-                }
-            }
+        if (!inserted && targetTopStakers.length < 100) {
+            targetTopStakers.push(newEntry);
+        }
+
+        if (targetTopStakers.length > 100) {
+            targetTopStakers.pop();
         }
     }
 
@@ -264,9 +337,9 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
     //    }
 
     function getTopStakeHolders(StakeLockTimeType lockTimeType, uint256 pageNumber, uint256 pageSize)
-        external
-        view
-        returns (top100StakerInfo[] memory, uint256)
+    external
+    view
+    returns (TopStakerResponse memory)
     {
         require(pageSize > 0, "Page size must be greater than zero");
         require(pageNumber > 0, "Page number must be greater than zero");
@@ -287,9 +360,10 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
             endIndex = totalStakers;
         }
 
-        // Ensure the startIndex is within range
-        require(startIndex < totalStakers, "Page number exceeds total pages");
-
+        if (startIndex >= totalStakers) {
+            TopStakerResponse memory emptyTopStakerResponse = TopStakerResponse(new top100StakerInfo[](0), totalStakers);
+            return emptyTopStakerResponse;
+        }
         uint256 resultLength = endIndex - startIndex;
         top100StakerInfo[] memory pagedStakers = new top100StakerInfo[](resultLength);
 
@@ -297,19 +371,25 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
             uint256 currentIndex = startIndex + i;
             TopStaker memory stakerInfo = targetTopStakers[currentIndex];
 
-            uint256 rewardAmount = getRewardAmount(stakerInfo.staker, stakerInfo.stakeIndex);
+            uint256 rewardAmount = getTotalRewardAmount(stakerInfo.staker, stakerInfo.stakeIndex);
 
             pagedStakers[i] = top100StakerInfo(
-                stakerInfo.staker, stakerInfo.totalStakedAmount, rewardAmount, stakerInfo.startAtTimestamp
+                stakerInfo.staker,
+                stakerInfo.totalStakedAmount,
+                rewardAmount,
+                stakerInfo.startAtTimestamp,
+                stakerInfo.stakeIndex
             );
         }
 
-        return (pagedStakers, totalStakers);
+        TopStakerResponse memory topStakerResponse = TopStakerResponse(pagedStakers, totalStakers);
+
+        return topStakerResponse;
     }
 
     function newStakeInfo(StakeLockTimeType stakeLockTimeType, uint256 stakeAmount)
-        internal
-        returns (StakeInfo memory)
+    internal
+    returns (StakeInfo memory)
     {
         addressToLastStakeIndex[msg.sender] = addressToLastStakeIndex[msg.sender] + 1;
         return StakeInfo(
@@ -321,14 +401,15 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
             getTotalRewardAmount(stakeLockTimeType, stakeAmount),
             block.timestamp,
             getRewardPerSeconds(stakeLockTimeType, getTotalRewardAmount(stakeLockTimeType, stakeAmount)),
+            0,
             0
         );
     }
 
     function stake(StakeLockTimeType stakeLockTimeType, uint256 stakeAmount)
-        external
-        nonReentrant
-        canStake(stakeLockTimeType, stakeAmount)
+    external
+    nonReentrant
+    canStake(stakeLockTimeType, stakeAmount)
     {
         require(rewardToken.allowance(msg.sender, address(this)) >= stakeAmount, "token not approved");
         rewardToken.transferFrom(msg.sender, address(this), stakeAmount);
@@ -338,15 +419,18 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
         address2StakeIndexList[msg.sender].push(stakeInfo.stakeIndex);
         if (stakeLockTimeType == StakeLockTimeType.days90) {
             currentDays90totalStakedAmount += stakeAmount;
+            currentDays90totalRewardAmount += stakeInfo.totalRewardAmount;
         } else if (stakeLockTimeType == StakeLockTimeType.days180) {
             currentDays180totalStakedAmount += stakeAmount;
+            currentDays180totalRewardAmount += stakeInfo.totalRewardAmount;
         }
+        stakingCount++;
+        emit Stake(msg.sender, stakeInfo.stakeIndex, stakeInfo.amount, stakeInfo.lockTimeType, stakeInfo.startTimestamp);
         updateTop100(msg.sender, stakeInfo.stakeIndex, stakeAmount, stakeLockTimeType, stakeInfo.startTimestamp);
     }
 
     function claim(uint256 stakeIndex) external nonReentrant {
         StakeInfo storage stakeInfo = addressToStakeInfos[msg.sender][stakeIndex];
-        require(stakeInfo.inStaking, "This stake is not in staking");
         uint256 rewardAmount = getRewardAmount(msg.sender, stakeIndex);
         require(rewardAmount > 0, "No reward to claim");
         require(rewardToken.balanceOf(address(this)) >= rewardAmount, "Not enough reward token balance");
@@ -359,26 +443,53 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
         } else if (stakeInfo.lockTimeType == StakeLockTimeType.days180) {
             currentDays180totalClaimedRewardAmount += rewardAmount;
         }
+        emit Claim(msg.sender, stakeIndex, rewardAmount, stakeInfo.lockTimeType, stakeInfo.lastClaimedTimestamp);
     }
 
-    function canExitStake(uint256 stakeIndex) external view returns (bool) {
-        StakeInfo storage stakeInfo = addressToStakeInfos[msg.sender][stakeIndex];
-        return stakeInfo.inStaking && block.timestamp >= unlockedAtTimestamp(stakeIndex, stakeInfo.lockTimeType);
+    function canExitStake(address holder, uint256 stakeIndex) public view returns (bool) {
+        StakeInfo storage stakeInfo = addressToStakeInfos[holder][stakeIndex];
+        return stakeInfo.inStaking && stakeInfo.endTimestamp == 0
+            && block.timestamp >= unlockedAtTimestamp(holder, stakeIndex, stakeInfo.lockTimeType);
     }
 
     function exitStake(uint256 stakeIndex) external nonReentrant {
         StakeInfo storage stakeInfo = addressToStakeInfos[msg.sender][stakeIndex];
-        require(stakeInfo.inStaking, "This stake is not in staking");
-        require(block.timestamp >= unlockedAtTimestamp(stakeInfo.stakeIndex, stakeInfo.lockTimeType), "Can't exit yet");
-        uint256 rewardAmount = (block.timestamp - stakeInfo.startTimestamp) * stakeInfo.rewardAmountPerSeconds;
-        rewardAmount = rewardAmount > stakeInfo.totalRewardAmount ? stakeInfo.totalRewardAmount : rewardAmount;
-        require(rewardToken.balanceOf(address(this)) >= rewardAmount, "Not enough reward token balance");
+        require(canExitStake(msg.sender, stakeIndex), "This stake is not in staking");
+        require(
+            block.timestamp >= unlockedAtTimestamp(msg.sender, stakeInfo.stakeIndex, stakeInfo.lockTimeType),
+            "Can't exit yet"
+        );
+        uint256 rewardAmount = getRewardAmount(msg.sender, stakeIndex);
+        require(
+            rewardToken.balanceOf(address(this)) >= stakeInfo.amount + rewardAmount, "Not enough reward token balance"
+        );
         rewardToken.transfer(msg.sender, stakeInfo.amount + rewardAmount);
         stakeInfo.inStaking = false;
+        uint256 _now = block.timestamp;
+        stakeInfo.endTimestamp = _now;
+        stakeInfo.claimedRewardAmount += rewardAmount;
+        stakeInfo.lastClaimedTimestamp = _now;
+        stakeInfo.totalRewardAmount = 0;
+        stakeInfo.amount = 0;
+        stakeInfo.rewardAmountPerSeconds = 0;
+        stakingCount--;
+        emit StakeExited(msg.sender, stakeIndex, stakeInfo.amount, stakeInfo.lockTimeType, _now);
+
+        if (stakeInfo.lockTimeType == StakeLockTimeType.days90) {
+            currentDays90totalClaimedRewardAmount += rewardAmount;
+            currentDays90totalExitedStakingAmount += stakeInfo.amount;
+        } else if (stakeInfo.lockTimeType == StakeLockTimeType.days180) {
+            currentDays180totalClaimedRewardAmount += rewardAmount;
+            currentDays180totalExitedStakingAmount += stakeInfo.amount;
+        }
     }
 
-    function unlockedAtTimestamp(uint256 stakeIndex, StakeLockTimeType lockTimeType) public view returns (uint256) {
-        StakeInfo storage stakeInfo = addressToStakeInfos[msg.sender][stakeIndex];
+    function unlockedAtTimestamp(address holder, uint256 stakeIndex, StakeLockTimeType lockTimeType)
+    public
+    view
+    returns (uint256)
+    {
+        StakeInfo storage stakeInfo = addressToStakeInfos[holder][stakeIndex];
         uint256 startTimestamp = stakeInfo.startTimestamp;
         if (startTimestamp == 0) {
             return 0;
@@ -392,8 +503,29 @@ contract OldDLCStaking is Initializable, OwnableUpgradeable, UUPSUpgradeable, Re
     }
 
     function claimLeftRewardToken() external onlyOwner {
-        require(rewardToken.balanceOf(address(this)) > 0, "No reward token balance");
-        rewardToken.transfer(msg.sender, rewardToken.balanceOf(address(this)));
+        uint256 claimDay90Amount = get90DaysLeftRewardAmount();
+        uint256 claimDay180Amount = get180DaysLeftRewardAmount();
+        uint256 totalAmount = claimDay90Amount + claimDay180Amount;
+        uint256 balance = rewardToken.balanceOf(address(this));
+        require(balance > totalAmount, "No reward token balance");
+        rewardToken.transfer(msg.sender, totalAmount);
+        days90TotalRewardAmount =
+            days90TotalRewardAmount - claimDay90Amount >= 0 ? days90TotalRewardAmount - claimDay90Amount : 0;
+        days180TotalRewardAmount =
+            days180TotalRewardAmount - claimDay180Amount >= 0 ? days180TotalRewardAmount - claimDay180Amount : 0;
+        emit ClaimLeftRewardToken(msg.sender, balance);
+    }
+
+    function balanceOf() external view returns (uint256) {
+        return rewardToken.balanceOf(address(this));
+    }
+
+    function get90DaysLeftRewardAmount() public view returns (uint256) {
+        return days90TotalRewardAmount - currentDays90totalRewardAmount;
+    }
+
+    function get180DaysLeftRewardAmount() public view returns (uint256) {
+        return days180TotalRewardAmount - currentDays180totalRewardAmount;
     }
 
     function version() external pure returns (uint256) {
